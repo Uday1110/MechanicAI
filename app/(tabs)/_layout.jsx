@@ -75,15 +75,15 @@ const TabLayout = () => {
           }}
         />
         <Tabs.Screen
-          name="create"
+          name="history"
           options={{
-            title: "Create",
+            title: "History",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
               <TabIcon
                 icon={icons.plus}
                 color={color}
-                name="Create"
+                name="History"
                 focused={focused}
               />
             ),
