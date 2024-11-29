@@ -44,14 +44,14 @@ const Chatbot = () => {
       let res;
       if (!sessionId) {
         // First message: use `/new` endpoint
-        res = await axios.post("http://192.168.237.232:5000/api/new", {
+        res = await axios.post("http://192.168.1.5:5000/api/new", {
           message,
           userId, // Use dynamic userId
         });
         setSessionId(res.data.sessionId); // Save the session ID
       } else {
         // Subsequent messages: use `/message` endpoint
-        res = await axios.post("http://192.168.237.232:5000/api/message", {
+        res = await axios.post("http://192.168.1.5:5000/api/message", {
           message,
           sessionId,
           userId, // Use dynamic userId
@@ -114,7 +114,7 @@ const Chatbot = () => {
             ))}
           </View>
         </ScrollView>
-        <View className="px-4">
+        <View className="px-3">
           <FormField
             value={message}
             onChangeText={setMessage}

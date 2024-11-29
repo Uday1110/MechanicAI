@@ -1,180 +1,161 @@
-import { useState } from "react";
-import { router } from "expo-router";
-import { ResizeMode, Video } from "expo-av";
-import * as DocumentPicker from "expo-document-picker";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect, useState } from "react";
+import { CustomButton, FormField } from "../../components";
 import {
   View,
   Text,
-  Alert,
-  Image,
+  FlatList,
   TouchableOpacity,
   ScrollView,
+  Platform,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
+import axios from "axios";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getCurrentUser } from "../../lib/appwrite"; // Function to get current user ID
 
-import { icons } from "../../constants";
-import { createVideoPost } from "../../lib/appwrite";
-import { CustomButton, FormField } from "../../components";
-import { useGlobalContext } from "../../context/GlobalProvider";
-
-const Create = () => {
-  const { user } = useGlobalContext();
-  const [uploading, setUploading] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    video: null,
-    thumbnail: null,
-    prompt: "",
-  });
-
-  const openPicker = async (selectType) => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type:
-        selectType === "image"
-          ? ["image/png", "image/jpg"]
-          : ["video/mp4", "video/gif"],
-    });
-
-    if (!result.canceled) {
-      if (selectType === "image") {
-        setForm({
-          ...form,
-          thumbnail: result.assets[0],
-        });
+const History = () => {
+  const [sessions, setSessions] = useState([]); // Chat sessions
+  const [selectedSession, setSelectedSession] = useState(null); // Selected session details
+  const [conversation, setConversation] = useState(""); // Conversation data
+  const [loading, setLoading] = useState(false); // Loading state
+  const [userId, setUserId] = useState(null); // User ID state
+  const [offset, setOffset] = useState(0);
+  // Fetch userId from Appwrite when the component mounts
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const user = await getCurrentUser(); // Fetch the current user
+        setUserId(user?.$id || null); // Save the userId or null if not logged in
+        console.log("User ID fetched:", user?.$id); // Debugging log
+      } catch (error) {
+        console.error("Error fetching user:", error);
       }
+    };
 
-      if (selectType === "video") {
-        setForm({
-          ...form,
-          video: result.assets[0],
-        });
-      }
-    } else {
-      setTimeout(() => {
-        Alert.alert("Document picked", JSON.stringify(result, null, 2));
-      }, 100);
+    fetchUserId();
+  }, []);
+
+  useEffect(() => {
+    // Ensure userId is available before making the API request
+    if (userId && offset === 0) {
+      // Only fetch if userId is available and offset is 0
+      const fetchChatSessions = async () => {
+        const requestUrl = `http://192.168.1.5:5000/api/chats`;
+        console.log(
+          "Making request to fetch chat sessions with userId:",
+          userId
+        );
+
+        try {
+          setLoading(true);
+          const response = await axios.post(requestUrl, { userId, offset });
+          setOffset(response.data.offset); // Update offset only if needed
+          console.log("Chat sessions fetched:", response.data);
+          setSessions(response.data.chatList); // Set chat sessions
+        } catch (error) {
+          console.error("Error fetching chat sessions:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchChatSessions();
+    } else if (!userId) {
+      console.log("User ID is not available. Skipping API request.");
     }
-  };
+  }, [userId, offset]); // Fetch chat sessions only when userId or offset changes
 
-  const submit = async () => {
-    if (
-      (form.prompt === "") |
-      (form.title === "") |
-      !form.thumbnail |
-      !form.video
-    ) {
-      return Alert.alert("Please provide all fields");
+  // Fetch chat details when a session is selected
+  const fetchChatDetails = async (sessionId) => {
+    if (!userId) {
+      console.log("User ID is not available for fetching chat details.");
+      return; // Prevent making the request if userId is not available
     }
 
-    setUploading(true);
+    console.log(
+      `Fetching chat details for sessionId: ${sessionId} with userId: ${userId}`
+    ); // Debugging log
     try {
-      await createVideoPost({
-        ...form,
-        userId: user.$id,
+      setLoading(true);
+      const response = await axios.post(`http://192.168.1.5:5000/api/history`, {
+        userId: userId,
+        sessionId: sessionId,
       });
-
-      Alert.alert("Success", "Post uploaded successfully");
-      router.push("/home");
+      console.log("Chat details fetched:", response.data); // Debugging log
+      setConversation(response.data.conversation);
+      setSelectedSession(response.data); // Set the selected session details
     } catch (error) {
-      Alert.alert("Error", error.message);
+      console.error("Error fetching chat details:", error);
     } finally {
-      setForm({
-        title: "",
-        video: null,
-        thumbnail: null,
-        prompt: "",
-      });
-
-      setUploading(false);
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView className="bg-primary h-full">
-      <Text className="text-2xl text-white font-psemibold">Chats</Text>
-      <ScrollView className="px-4 my-6">
-        <FormField
-          title="Video Title"
-          value={form.title}
-          placeholder="Give your video a catchy title..."
-          handleChangeText={(e) => setForm({ ...form, title: e })}
-          otherStyles="mt-10"
+      {/* Chat Sessions List */}
+      <Text className="text-2xl text-white font-psemibold mb-4 p-5">
+        Chat History
+      </Text>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#0000ff" />
+      ) : (
+        <FlatList
+          data={sessions}
+          keyExtractor={(item) => item.sessionId}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              className="p-4 border-b"
+              onPress={() => fetchChatDetails(item.sessionId)} // Fetch details of selected chat
+            >
+              <Text className="text-lg text-white">{item.title}</Text>
+            </TouchableOpacity>
+          )}
         />
+      )}
 
-        <View className="mt-7 space-y-2">
-          <Text className="text-base text-gray-100 font-pmedium">
-            Upload Video
+      {/* Chat Details View */}
+      {selectedSession && !loading && (
+        <ScrollView className="flex-1 p-3">
+          {/* <TouchableOpacity
+              onPress={() => setSelectedSession(null)} // Go back to the list view
+              className="mb-4 p-2 bg-blue-500 rounded"
+            >
+              <Text className="text-white text-sm">Back to History</Text>
+            </TouchableOpacity> */}
+          <CustomButton
+            title={"Back to history"}
+            handlePress={() => setSelectedSession(null)}
+            containerStyles="mt-7"
+          />
+
+          {/* Display the title of the selected session */}
+          <Text className="text-2xl text-white font-bold mb-4">
+            {selectedSession?.title || "Untitled Session"}
           </Text>
 
-          <TouchableOpacity onPress={() => openPicker("video")}>
-            {form.video ? (
-              <Video
-                source={{ uri: form.video.uri }}
-                className="w-full h-64 rounded-2xl"
-                useNativeControls
-                resizeMode={ResizeMode.COVER}
-                isLooping
-              />
-            ) : (
-              <View className="w-full h-40 px-4 bg-black-100 rounded-2xl border border-black-200 flex justify-center items-center">
-                <View className="w-14 h-14 border border-dashed border-secondary-100 flex justify-center items-center">
-                  <Image
-                    source={icons.upload}
-                    resizeMode="contain"
-                    alt="upload"
-                    className="w-1/2 h-1/2"
-                  />
-                </View>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View className="mt-7 space-y-2">
-          <Text className="text-base text-gray-100 font-pmedium">
-            Thumbnail Image
-          </Text>
-
-          <TouchableOpacity onPress={() => openPicker("image")}>
-            {form.thumbnail ? (
-              <Image
-                source={{ uri: form.thumbnail.uri }}
-                resizeMode="cover"
-                className="w-full h-64 rounded-2xl"
-              />
-            ) : (
-              <View className="w-full h-16 px-4 bg-black-100 rounded-2xl border-2 border-black-200 flex justify-center items-center flex-row space-x-2">
-                <Image
-                  source={icons.upload}
-                  resizeMode="contain"
-                  alt="upload"
-                  className="w-5 h-5"
-                />
-                <Text className="text-sm text-gray-100 font-pmedium">
-                  Choose a file
+          {/* Render each message in the conversation */}
+          {conversation && Array.isArray(conversation) ? (
+            conversation.map((msg) => (
+              <View key={msg._id} className="mb-4">
+                <Text className="font-semibold text-blue-500">
+                  {msg.sender}:
+                </Text>
+                <Text className="text-white">{msg.message}</Text>
+                <Text className="text-xs text-yellow-200">
+                  {new Date(msg.timestamp).toLocaleString()}
                 </Text>
               </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <FormField
-          title="AI Prompt"
-          value={form.prompt}
-          placeholder="The AI prompt of your video...."
-          handleChangeText={(e) => setForm({ ...form, prompt: e })}
-          otherStyles="mt-7"
-        />
-
-        <CustomButton
-          title="Submit & Publish"
-          handlePress={submit}
-          containerStyles="mt-7"
-          isLoading={uploading}
-        />
-      </ScrollView>
+            ))
+          ) : (
+            <Text className="text-red-700">No conversation available</Text>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
 
-export default Create;
+export default History;
