@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import axios from "axios";
 import { CustomButton, FormField } from "../../components";
 import { getCurrentUser } from "../../lib/appwrite"; // Import Appwrite helper function
+import Markdown from "react-native-markdown-display";
 
 const Chatbot = () => {
   const [message, setMessage] = useState("");
@@ -99,17 +100,38 @@ const Chatbot = () => {
                   alignSelf: msg.type === "user" ? "flex-end" : "flex-start",
                 }}
               >
-                <Text
-                  className={`p-3 rounded-lg ${
-                    msg.type === "user"
-                      ? "bg-blue-600 text-white text-lg"
-                      : "text-white text-lg"
-                  }`}
-                >
-                  {msg.type === "user"
-                    ? `You: ${msg.text}`
-                    : `Bot: ${msg.text}`}
-                </Text>
+                {msg.type === "user" ? (
+                  <Text className="p-3 bg-blue-600 text-white text-lg rounded-3xl">
+                    {msg.text}
+                  </Text>
+                ) : (
+                  <View
+                    // style={{
+                    //   backgroundColor: "transparent",
+                    //   padding: 8,
+                    //   borderRadius: 8,
+                    // }}
+                    className="text-white text-lg"
+                  >
+                    <Markdown
+                      style={{
+                        body: {
+                          color: "#fff",
+                          fontSize: 18,
+                        },
+                        // strong: {
+                        //   color: "#ffcc00", // Highlight for bold text
+                        // },
+                        // heading1: {
+                        //   color: "#00ccff", // Custom style for headers
+                        //   fontSize: 20,
+                        // },
+                      }}
+                    >
+                      {msg.text}
+                    </Markdown>
+                  </View>
+                )}
               </View>
             ))}
           </View>
